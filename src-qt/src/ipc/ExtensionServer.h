@@ -286,7 +286,7 @@ public:
                         qualities.append(szObj);
                     }
                 }
-                int threads = j.value("threads").toInt(32);
+                int threads = j.value("threads").toInt(8);
                 bool startNow = j.value("start_now").toBool(false);
 
                 if (j.contains("cookies")) {

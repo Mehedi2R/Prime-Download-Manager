@@ -368,7 +368,7 @@ public:
         quint64 totalSize,
         const QString& category,
         const QString& saveDir = "",
-        int threads = 32,
+        int threads = 8,
         const QString& webpageUrl = "",
         const QString& formatQuality = "best",
         bool startImmediately = true,
@@ -1182,7 +1182,7 @@ private:
             QJsonObject j = doc.object();
             if (j.contains("default_save_path")) m_defaultSavePath = j["default_save_path"].toString();
             if (j.contains("temp_path")) m_tempPath = j["temp_path"].toString();
-            if (j.contains("default_threads")) m_defaultThreads = j["default_threads"].toInt(32);
+            if (j.contains("default_threads")) m_defaultThreads = j["default_threads"].toInt(8);
             if (j.contains("auto_clipboard")) m_autoClipboard = j["auto_clipboard"].toBool(true);
             if (j.contains("launch_startup")) m_launchStartup = j["launch_startup"].toBool(true);
             if (j.contains("file_types")) m_fileTypes = j["file_types"].toString();
@@ -1269,7 +1269,7 @@ private:
     QVector<DownloadTask> m_tasks;
     QString m_defaultSavePath;
     QString m_tempPath;
-    int m_defaultThreads = 32;
+    int m_defaultThreads = 8;
     bool m_autoClipboard = true;
     bool m_launchStartup = true;
     QString m_fileTypes = "3GP 7Z AAC ACE AIF APK ARJ ASF AVI BIN BZ2 EXE GZ GZIP IMG ISO LZH M4A M4V MKV MOV MP3 MP4 MPA MPE MPEG MPG MSI MSU OGG OGV PDF PLJ PPS PPT QT R0* R1* RA RAR RM RMVB SEA SIT SITX TAR TIF TIFF WAV WMA WMV Z ZIP";

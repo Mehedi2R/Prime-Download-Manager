@@ -19,11 +19,11 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName",      "PrimeApps\0"
+            VALUE "CompanyName",      "@Mehedi2R\0"
             VALUE "FileDescription",  "Prime Download Manager\0"
             VALUE "FileVersion",      "3.0.46.0\0"
             VALUE "InternalName",     "PrimeDownloadManager.exe\0"
-            VALUE "LegalCopyright",   "Copyright (C) 2026 PrimeApps. All rights reserved.\0"
+            VALUE "LegalCopyright",   "Copyright (C) 2026 @Mehedi2R. All rights reserved.\0"
             VALUE "OriginalFilename", "PrimeDownloadManager.exe\0"
             VALUE "ProductName",      "Prime Download Manager\0"
             VALUE "ProductVersion",   "3.0.46\0"

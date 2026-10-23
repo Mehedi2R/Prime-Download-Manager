@@ -326,7 +326,7 @@ async function triggerDownload(startNow) {
   }
 
   const quality = isVideoMode ? selectQuality.value : "best";
-  const threads = 32;
+  const threads = 8;
   const savePath = inputSavePath.value.trim();
   const title = inputFilename.value.trim();
 

@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
 #endif
     qWarning() << "[MAIN] Initializing MainWindow...";
     app.setApplicationName("PrimeDownloadManager");
-    app.setOrganizationName("PrimeApps");
+    app.setOrganizationName("@Mehedi2R");
     app.setApplicationVersion("3.0.46");
     app.setWindowIcon(QIcon(":/icons/app_logo.png"));
     // Ensure the application stays active in the background tray when main window is closed

@@ -800,7 +800,7 @@ private:
 
         QString thStr = m_cmbThreads->currentText();
         int th = thStr.split(" ").first().toInt();
-        if (th <= 0) th = 32;
+        if (th <= 0) th = 8;
         mgr.setDefaultThreads(th);
 
         mgr.setLaunchStartup(m_chkLaunchStartup->isChecked());

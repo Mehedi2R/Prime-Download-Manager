@@ -2641,7 +2641,7 @@
         title: safeTitle,
         duration: duration,
         qualities: qualitiesPayload,
-        threads: 32
+        threads: 8
       }, (resp) => {
         if (chrome.runtime.lastError) {
           console.warn("[PDM Content] send_download error/warning:", chrome.runtime.lastError.message);

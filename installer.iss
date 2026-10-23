@@ -3,7 +3,7 @@
 
 #define MyAppName "Prime Download Manager"
 #define MyAppVersion "3.0.46"
-#define MyAppPublisher "PrimeApps"
+#define MyAppPublisher "@Mehedi2R"
 #define MyAppExeName "PrimeDownloadManager.exe"
 #define MyAppIcon "src-qt\resources\icons\app_logo.ico"
 

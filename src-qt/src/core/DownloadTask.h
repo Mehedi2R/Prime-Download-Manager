@@ -25,7 +25,7 @@ public:
     double speed = 0.0;
     qint64 etaSeconds = 0;
     QString status = "Paused"; // "Downloading", "Paused", "Completed", "Error", "Connecting..."
-    int segmentsCount = 32;
+    int segmentsCount = 8;
     QVector<SegmentProgress> segments;
     QString category = "Downloads";
     QString savePath;
@@ -87,7 +87,7 @@ public:
         t.speed = j["speed"].toDouble();
         t.etaSeconds = j["eta_seconds"].toVariant().toLongLong();
         t.status = j["status"].toString("Paused");
-        t.segmentsCount = j["segments_count"].toInt(32);
+        t.segmentsCount = j["segments_count"].toInt(8);
         t.category = j["category"].toString("Downloads");
         t.savePath = j["save_path"].toString();
         t.quality = j["quality"].toString("best");

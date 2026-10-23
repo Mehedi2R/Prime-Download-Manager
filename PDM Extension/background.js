@@ -781,7 +781,7 @@ async function routeDownloadToDesktop(item) {
       size: totalSize,
       headers: headers,
       cookies: cookies || undefined,
-      threads: 32,
+      threads: 8,
       start_now: false
     };
 
@@ -1216,7 +1216,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           audio_url: audioToUse || undefined,
           webpage_url: webpageUrl,
           direct_server_url: request.direct_server_url || ((urlToUse && !urlToUse.startsWith("blob:") && urlToUse !== webpageUrl) ? urlToUse : undefined),
-          threads: request.threads || 32,
+          threads: request.threads || 8,
           quality: request.quality || "best",
           title: titleToUse,
           duration: request.duration || 0,
@@ -1299,7 +1299,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           title: dl.filename || "",
           category: dl.category || "",
           save_path: dl.save_path || "",
-          threads: 32,
+          threads: 8,
           quality: dl.quality || "best",
           start_now: (dl.start_now !== false),
           headers: reqHeaders,
@@ -1382,7 +1382,7 @@ async function sendDownloadToPrime(url, filename = "", duration = 0, webpageUrl 
       audio_url: audioUrl || undefined,
       webpage_url: webpageUrl || cleanUrl,
       save_path: "",
-      threads: 32,
+      threads: 8,
       quality: chosenQuality,
       title: filename || "",
       duration: duration || 0,
