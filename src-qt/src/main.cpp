@@ -48,16 +48,6 @@ int main(int argc, char *argv[]) {
     HANDLE hMutex = CreateMutexW(NULL, FALSE, L"Local\\PrimeDownloadManager_SingleInstance_Mutex_v3");
     DWORD mErr = GetLastError();
     qWarning() << "[MAIN] CreateMutexW result:" << hMutex << "mErr:" << mErr;
-    if (hMutex != NULL && mErr == ERROR_ALREADY_EXISTS) {
-        HWND hwnd = FindWindowW(NULL, L"Prime Download Manager 3.0.46");
-        if (hwnd) {
-            ShowWindow(hwnd, SW_RESTORE);
-            SetForegroundWindow(hwnd);
-            BringWindowToTop(hwnd);
-            CloseHandle(hMutex);
-            return 0;
-        }
-    }
 #endif
 
     QApplication app(argc, argv);
@@ -65,15 +55,21 @@ int main(int argc, char *argv[]) {
 
 #ifdef Q_OS_WIN
     if (hMutex != NULL && mErr == ERROR_ALREADY_EXISTS) {
+        // Another instance is already running in background or system tray.
+        // Send wake-up command via Qt IPC to restore the UI cleanly inside the owning Qt process.
         QLocalSocket socket;
         socket.connectToServer("PrimeDownloadManager_IPC_Server");
-        if (socket.waitForConnected(400)) {
+        if (socket.waitForConnected(600)) {
             socket.write("SHOW\n");
             socket.flush();
-            socket.waitForBytesWritten(400);
+            socket.waitForBytesWritten(600);
+            socket.disconnectFromServer();
             CloseHandle(hMutex);
+            qWarning() << "[MAIN] Successfully signaled running instance via IPC. Exiting cleanly.";
             return 0;
         }
+        // If IPC connection failed, previous instance crashed or is hung; continue as new primary instance
+        qWarning() << "[MAIN] Mutex existed but IPC server was unreachable. Taking over as primary instance.";
     }
 #endif
     qWarning() << "[MAIN] Initializing MainWindow...";

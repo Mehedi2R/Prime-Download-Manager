@@ -121,7 +121,8 @@ public:
             }
 #endif
             m_probeProcess->kill();
-            m_probeProcess->deleteLater();
+            m_probeProcess->waitForFinished(500);
+            delete m_probeProcess;
             m_probeProcess = nullptr;
         }
     }
@@ -750,7 +751,7 @@ public:
 #endif
             m_process->kill();
             m_process->waitForFinished(1000);
-            m_process->deleteLater();
+            delete m_process;
             m_process = nullptr;
         }
     }

@@ -20,6 +20,7 @@ public:
         connect(&mgr, &DownloadManager::taskRemoved, this, [this](const QString&) {
             updateFilter();
         });
+        updateFilter();
     }
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override {

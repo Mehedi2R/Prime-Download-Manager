@@ -63,8 +63,15 @@ public:
         checkEmptyState();
     }
 
+    ~MainWindow() override {
+        if (m_extServer) {
+            m_extServer->stop();
+        }
+        DownloadManager::instance().flushSaveTasks();
+    }
+
     void showWindow() {
-        if (isMinimized() || isMaximized()) {
+        if (isMinimized()) {
             showNormal();
         }
         resize(935, 520);
@@ -74,16 +81,23 @@ public:
 #ifdef Q_OS_WIN
         HWND hwnd = reinterpret_cast<HWND>(winId());
         if (hwnd) {
-            ::ShowWindow(hwnd, SW_RESTORE);
+            ::ShowWindow(hwnd, SW_SHOWNORMAL);
             ::SetWindowPos(hwnd, HWND_TOP, 0, 0, 935, 520, SWP_NOMOVE | SWP_SHOWWINDOW);
             ::SetForegroundWindow(hwnd);
             ::BringWindowToTop(hwnd);
         }
 #endif
+        onTick();
+        updateSidebarCounts();
+        checkEmptyState();
+        update();
     }
 
     void exitApplication() {
         m_reallyQuit = true;
+        if (m_extServer) {
+            m_extServer->stop();
+        }
         DownloadManager::instance().flushSaveTasks();
         if (m_trayIcon) {
             m_trayIcon->hide();
@@ -100,9 +114,9 @@ protected:
             if (!s_balloonShown && m_trayIcon && m_trayIcon->isVisible()) {
                 m_trayIcon->showMessage(
                     "Prime Download Manager",
-                    "Application is running in the background system tray. Double-click tray icon to open.",
+                    "Application is minimized to the system tray and running in the background.\nClick or double-click the tray icon to restore.",
                     QSystemTrayIcon::Information,
-                    2000
+                    2500
                 );
                 s_balloonShown = true;
             }
@@ -637,24 +651,27 @@ private:
         }
         activeThreads = qBound(0, activeThreads, 32);
 
-        if (totalSpeed > 0) {
-            m_lblTotalSpeed->setText(QString("%1/s").arg(CategoryRules::formatBytes(static_cast<quint64>(totalSpeed))));
-            m_lblTotalSpeed->setStyleSheet("color: #00ffff; font-weight: bold; font-family: 'Segoe UI', monospace; font-size: 13px; border: none; background: transparent;");
-        } else {
-            m_lblTotalSpeed->setText("0 KB/s");
-            m_lblTotalSpeed->setStyleSheet("color: #64748b; font-weight: bold; font-family: 'Segoe UI', monospace; font-size: 13px; border: none; background: transparent;");
-        }
+        // Only update UI widgets when window is visible (saves CPU/power while running in background system tray)
+        if (isVisible()) {
+            if (totalSpeed > 0) {
+                m_lblTotalSpeed->setText(QString("%1/s").arg(CategoryRules::formatBytes(static_cast<quint64>(totalSpeed))));
+                m_lblTotalSpeed->setStyleSheet("color: #00ffff; font-weight: bold; font-family: 'Segoe UI', monospace; font-size: 13px; border: none; background: transparent;");
+            } else {
+                m_lblTotalSpeed->setText("0 KB/s");
+                m_lblTotalSpeed->setStyleSheet("color: #64748b; font-weight: bold; font-family: 'Segoe UI', monospace; font-size: 13px; border: none; background: transparent;");
+            }
 
-        int maxTh = qMax(activeThreads, DownloadManager::instance().defaultThreads());
-        m_lblThreadsCount->setText(QString("%1 / %2").arg(activeThreads).arg(maxTh));
-        m_threadsProgress->setRange(0, maxTh);
-        if (activeThreads > 0) {
-            m_lblThreadsCount->setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
-        } else {
-            m_lblThreadsCount->setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
+            int maxTh = qMax(activeThreads, DownloadManager::instance().defaultThreads());
+            m_lblThreadsCount->setText(QString("%1 / %2").arg(activeThreads).arg(maxTh));
+            m_threadsProgress->setRange(0, maxTh);
+            if (activeThreads > 0) {
+                m_lblThreadsCount->setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
+            } else {
+                m_lblThreadsCount->setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
+            }
+            m_threadsProgress->setValue(activeThreads);
+            updateSidebarCounts();
         }
-        m_threadsProgress->setValue(activeThreads);
-        updateSidebarCounts();
 
         if (m_trayIcon) {
             if (totalSpeed > 0) {
