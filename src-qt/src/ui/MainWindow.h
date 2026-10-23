@@ -53,6 +53,7 @@ public:
         setWindowIcon(QIcon(":/icons/app_logo.png"));
         setMinimumSize(935, 520);
         resize(935, 520);
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
 
         DownloadManager::instance().init();
         setupUI();
@@ -246,7 +247,7 @@ private:
         lblThIcon->setStyleSheet("color: #38bdf8; font-size: 11px; border: none; background: transparent;");
         QLabel* lblThTitle = new QLabel("THREADS", threadsWidget);
         lblThTitle->setStyleSheet("color: #94a3b8; font-size: 9px; font-weight: 700; letter-spacing: 1px; border: none; background: transparent;");
-        m_lblThreadsCount = new QLabel("0 / 32", threadsWidget);
+        m_lblThreadsCount = new QLabel(QString("0 / %1").arg(DownloadManager::instance().defaultThreads()), threadsWidget);
         m_lblThreadsCount->setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
 
         thHeader->addWidget(lblThIcon);
@@ -255,7 +256,7 @@ private:
         thHeader->addWidget(m_lblThreadsCount);
 
         m_threadsProgress = new QProgressBar(threadsWidget);
-        m_threadsProgress->setRange(0, 32);
+        m_threadsProgress->setRange(0, DownloadManager::instance().defaultThreads());
         m_threadsProgress->setValue(0);
         m_threadsProgress->setTextVisible(false);
         m_threadsProgress->setFixedHeight(3);
@@ -644,7 +645,9 @@ private:
             m_lblTotalSpeed->setStyleSheet("color: #64748b; font-weight: bold; font-family: 'Segoe UI', monospace; font-size: 13px; border: none; background: transparent;");
         }
 
-        m_lblThreadsCount->setText(QString("%1 / 32").arg(activeThreads));
+        int maxTh = qMax(activeThreads, DownloadManager::instance().defaultThreads());
+        m_lblThreadsCount->setText(QString("%1 / %2").arg(activeThreads).arg(maxTh));
+        m_threadsProgress->setRange(0, maxTh);
         if (activeThreads > 0) {
             m_lblThreadsCount->setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
         } else {
@@ -868,8 +871,9 @@ public slots:
         }
         m_lblTotalSpeed->setText("0 KB/s");
         m_lblTotalSpeed->setStyleSheet("color: #64748b; font-weight: bold; font-family: 'Segoe UI', monospace; font-size: 13px; border: none; background: transparent;");
-        m_lblThreadsCount->setText("0 / 32");
+        m_lblThreadsCount->setText(QString("0 / %1").arg(DownloadManager::instance().defaultThreads()));
         m_lblThreadsCount->setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold; font-family: 'Segoe UI', monospace; border: none; background: transparent;");
+        m_threadsProgress->setRange(0, DownloadManager::instance().defaultThreads());
         m_threadsProgress->setValue(0);
     }
 

@@ -6,6 +6,8 @@
 #include <QString>
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 #endif
 #include "ui/MainWindow.h"
 #include <QFile>
@@ -32,12 +34,8 @@ static void logHandler(QtMsgType type, const QMessageLogContext &context, const 
 }
 
 int main(int argc, char *argv[]) {
-    // 0. Prevent GPU driver context switching, DirectX hook resets, and laptop screen blanking
-    QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL, true);
+    // High-DPI scaling configuration for crisp rendering on modern displays
     qputenv("QT_ENABLE_HIGHDPI_SCALING", "1");
-    qputenv("QT_QUICK_BACKEND", "software");
-    qputenv("QSG_RHI_BACKEND", "software");
-    qputenv("QT_D3D_NO_GPU_SELECTION", "1");
 
     qInstallMessageHandler(logHandler);
     qWarning() << "[MAIN] Prime Download Manager starting, args:" << argc;
@@ -120,6 +118,19 @@ int main(int argc, char *argv[]) {
 
     MainWindow w;
     qWarning() << "[MAIN] MainWindow constructed successfully";
+
+#ifdef Q_OS_WIN
+    // Enable Windows Immersive Dark Mode on native window frame & set dark background brush
+    // to completely eliminate white frame flash/lag during window initialization
+    HWND mainHwnd = reinterpret_cast<HWND>(w.winId());
+    if (mainHwnd) {
+        BOOL dark = TRUE;
+        ::DwmSetWindowAttribute(mainHwnd, 20, &dark, sizeof(dark)); // DWMWA_USE_IMMERSIVE_DARK_MODE (Win10 20H1+ & Win11)
+        ::DwmSetWindowAttribute(mainHwnd, 19, &dark, sizeof(dark)); // Win10 1809
+        HBRUSH darkBrush = ::CreateSolidBrush(RGB(11, 15, 25)); // #0b0f19
+        ::SetClassLongPtr(mainHwnd, GCLP_HBRBACKGROUND, reinterpret_cast<LONG_PTR>(darkBrush));
+    }
+#endif
 
     // Check if launched silently in background (e.g. system startup)
     bool startInBackground = false;

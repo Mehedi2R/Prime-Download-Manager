@@ -772,7 +772,7 @@ private:
         if (!line.startsWith("[download]")) return;
 
         static const QRegularExpression rx(
-            R"(\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+~?\s*([0-9\.]+)\s*([A-Za-z]+)(?:\s+at\s+([0-9\.]+)\s*([A-Za-z]+)/s)?(?:\s+(?:ETA|in)\s+([0-9:]+))?)"
+            R"(\[download\]\s+([\d.]+)%\s+of\s+~?\s*([\d.]+)\s*([A-Za-z]+)(?:\s+at\s+([\d.]+)\s*([A-Za-z]+)/s)?(?:\s+(?:ETA|in)\s+([0-9:]+))?)"
         );
         auto match = rx.match(line);
         if (match.hasMatch()) {
