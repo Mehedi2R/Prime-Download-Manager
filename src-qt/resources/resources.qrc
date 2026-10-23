@@ -1,0 +1,20 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/icons">
+    <file alias="add_url.png">icons/add_url.png</file>
+    <file alias="resume.png">icons/resume.png</file>
+    <file alias="stop.png">icons/stop.png</file>
+    <file alias="stop_all.png">icons/stop_all.png</file>
+    <file alias="delete.png">icons/delete.png</file>
+    <file alias="delete_clear.png">icons/delete_clear.png</file>
+    <file alias="options.png">icons/options.png</file>
+    <file alias="close.png">icons/close.png</file>
+    <file alias="app_logo.png">icons/app_logo.png</file>
+    <file alias="cat_programs.png">icons/cat_programs.png</file>
+    <file alias="cat_videos.png">icons/cat_videos.png</file>
+    <file alias="cat_compressed.png">icons/cat_compressed.png</file>
+    <file alias="cat_documents.png">icons/cat_documents.png</file>
+    <file alias="cat_music.png">icons/cat_music.png</file>
+    <file alias="cat_images.png">icons/cat_images.png</file>
+    <file alias="cat_default.png">icons/cat_default.png</file>
+</qresource>
+</RCC>

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prime Download Manager</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 490px;
+      background: #080d1a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      user-select: none;
+      padding: 16px;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .title-logo {
+      width: 22px;
+      height: 22px;
+      background: #0284c7;
+      color: #ffffff;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .title-text {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+    }
+    .intercept-badge {
+      background-color: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: #22d3ee;
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 10.5px;
+      font-weight: 600;
+    }
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .close-btn:hover {
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.2);
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .field-label {
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: block;
+    }
+    .filename-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #0d1527;
+      border: 1.5px solid #06b6d4;
+      border-radius: 7px;
+      padding: 5px 10px;
+    }
+    .format-icon {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .filename-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+    }
+    .ext-badge {
+      background-color: rgba(6, 182, 212, 0.18);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #38bdf8;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .meta-card {
+      background-color: #0d1527;
+      border: 1px solid #1e293b;
+      border-radius: 7px;
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .meta-card-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #64748b;
+    }
+    .meta-card-value {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .meta-card-value.size-highlight {
+      color: #00d2ff;
+    }
+    .select-dropdown {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 1px 0;
+    }
+    .select-dropdown option {
+      background: #0d1527;
+      color: #f8fafc;
+    }
+    .url-input {
+      width: 100%;
+      background-color: #0d1527;
+      color: #94a3b8;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      outline: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .url-input:focus {
+      border-color: #00d2ff;
+      color: #f8fafc;
+    }
+    .saveto-input {
+      width: 100%;
+      background-color: #0d1527;
+      color: #f8fafc;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      outline: none;
+    }
+    .saveto-input:focus {
+      border-color: #00d2ff;
+    }
+    .referrer-subtext {
+      color: #64748b;
+      font-size: 10.5px;
+      margin-bottom: 12px;
+    }
+    .footer-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .thread-status {
+      color: #38bdf8;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-secondary {
+      background-color: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover {
+      background-color: #334155;
+      color: #ffffff;
+    }
+    .btn-primary {
+      background: linear-gradient(90deg, #00d2ff 0%, #0284c7 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover {
+      opacity: 0.92;
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .notification {
+      display: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+    .notification.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .notification.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="title-group">
+      <div class="title-logo">⬇</div>
+      <span class="title-text" id="dlg-title">Prime Download Manager</span>
+      <span class="intercept-badge" id="dlg-badge">Download Intercepted</span>
+    </div>
+    <button class="close-btn" id="btn-close" title="Close">✕</button>
+  </div>
+
+  <!-- NOTIFICATION BANNER -->
+  <div id="notification-banner" class="notification"></div>
+
+  <!-- FILE NAME -->
+  <div class="form-group">
+    <label class="field-label">FILE NAME</label>
+    <div class="filename-box">
+      <span class="format-icon" id="file-icon">⚙</span>
+      <input type="text" id="input-filename" class="filename-input" placeholder="filename.ext" spellcheck="false" autocomplete="off" />
+      <span class="ext-badge" id="file-badge">EXE</span>
+    </div>
+  </div>
+
+  <!-- 2-COLUMN CARDS: FORMAT CATEGORY & FILE SIZE (OR QUALITY FOR VIDEO) -->
+  <div class="grid-2">
+    <!-- Format Category Card -->
+    <div class="meta-card">
+      <span class="meta-card-label">Format Category</span>
+      <select id="select-category" class="select-dropdown">
+        <option value="Programs">Programs</option>
+        <option value="Compressed">Compressed</option>
+        <option value="Documents">Documents</option>
+        <option value="Music">Music</option>
+        <option value="Videos">Videos</option>
+        <option value="Images">Images</option>
+        <option value="Downloads">Downloads</option>
+      </select>
+    </div>
+
+    <!-- File Size Card (or Resolution Quality Card for Videos) -->
+    <div class="meta-card" id="card-right">
+      <span class="meta-card-label" id="lbl-right-card">File Size</span>
+      <!-- For Non-Video Files: Exact File Size -->
+      <span class="meta-card-value size-highlight" id="lbl-filesize">Calculating size...</span>
+      <!-- For Video Files: Quality Selection -->
+      <select id="select-quality" class="select-dropdown" style="display: none;">
+        <option value="best" selected>Best Available (Auto)</option>
+        <option value="1080p">1080p Full HD</option>
+        <option value="720p">720p HD</option>
+        <option value="480p">480p SD</option>
+        <option value="audio">Audio Only (MP3)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- DOWNLOAD SOURCE URL -->
+  <div class="form-group">
+    <label class="field-label">DOWNLOAD SOURCE URL</label>
+    <input type="text" id="input-url" class="url-input" placeholder="https://..." autofocus />
+  </div>
+
+  <!-- SAVE TO (Below Download Source URL as requested) -->
+  <div class="form-group">
+    <label class="field-label">SAVE TO</label>
+    <input type="text" id="input-save-path" class="saveto-input" placeholder="Default download folder" />
+  </div>
+
+  <!-- REFERRER SUBTEXT -->
+  <div class="referrer-subtext" id="referrer-text">Initiated from: direct download</div>
+
+  <!-- FOOTER -->
+  <div class="footer-bar" style="justify-content: flex-end;">
+    <div class="btn-group">
+      <button class="btn-secondary" id="btn-cancel">Cancel</button>
+      <button class="btn-secondary" id="btn-later">Download Later</button>
+      <button class="btn-primary" id="btn-start">Start Download</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

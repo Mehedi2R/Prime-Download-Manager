@@ -1,0 +1,21 @@
+# C++ / CMake build outputs
+build/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.lib
+*.exp
+CMakeLists.txt.user
+.vs/
+*.vcxproj*
+
+# Logs
+logs
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
