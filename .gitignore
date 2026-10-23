@@ -2,6 +2,7 @@
 build/
 *.obj
 *.exe
+!src-qt/bin/*.exe
 *.pdb
 *.ilk
 *.lib

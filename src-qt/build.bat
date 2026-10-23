@@ -32,6 +32,24 @@ if exist "C:\Qt\6.8.0\msvc2022_64" (
 
 echo [INFO] Using Qt 6 from: !QT_DIR!
 
+:: 2.5 Ensure embedded ffmpeg and yt-dlp binaries are present
+if not exist "bin" mkdir "bin"
+if not exist "bin\ffmpeg.exe" (
+    if exist "%LOCALAPPDATA%\PrimeDownloadManager\bin\ffmpeg.exe" (
+        echo [INFO] Restoring ffmpeg.exe from local cache...
+        copy /y "%LOCALAPPDATA%\PrimeDownloadManager\bin\ffmpeg.exe" "bin\ffmpeg.exe" >nul
+    )
+)
+if not exist "bin\yt-dlp.exe" (
+    if exist "%LOCALAPPDATA%\PrimeDownloadManager\bin\yt-dlp.exe" (
+        echo [INFO] Restoring yt-dlp.exe from local cache...
+        copy /y "%LOCALAPPDATA%\PrimeDownloadManager\bin\yt-dlp.exe" "bin\yt-dlp.exe" >nul
+    ) else (
+        echo [INFO] Downloading official yt-dlp binary...
+        powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe', 'bin\yt-dlp.exe')"
+    )
+)
+
 :: 3. Create build directory
 if not exist "build" mkdir "build"
 cd build

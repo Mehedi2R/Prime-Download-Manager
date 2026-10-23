@@ -70,3 +70,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
+if(WIN32)
+    # Automatically deploy embedded ffmpeg.exe and yt-dlp.exe next to executable in bin/
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:${PROJECT_NAME}>/bin
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/bin/ffmpeg.exe $<TARGET_FILE_DIR:${PROJECT_NAME}>/bin/ffmpeg.exe
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/bin/yt-dlp.exe $<TARGET_FILE_DIR:${PROJECT_NAME}>/bin/yt-dlp.exe
+    )
+endif()
+
