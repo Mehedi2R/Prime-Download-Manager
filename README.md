@@ -1,6 +1,6 @@
 # Prime Download Manager 3.0.46 (Qt 6 C++ Edition)
 
-High-performance, modern native download manager built with Qt 6 C++, featuring IDM-style browser integration, 32-thread multi-segmented downloading, and automatic lossless video stream capture.
+High-performance, modern native download manager built with Qt 6 C++, featuring IDM-style browser integration, multi-segmented downloading (default 8 threads, up to 32), and automatic lossless video stream capture.
 
 ## Build & Development
 

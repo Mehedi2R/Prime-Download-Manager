@@ -226,7 +226,7 @@ protected:
         }
 #ifdef Q_OS_WIN
         HWND hwnd = (HWND)winId();
-        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         SetForegroundWindow(hwnd);
 #endif
     }

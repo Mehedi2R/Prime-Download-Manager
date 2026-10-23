@@ -27,6 +27,45 @@ public:
         loadTasks();
     }
 
+    void shutdown() {
+        for (auto* p : m_muxProcesses) {
+            if (p) {
+                p->kill();
+                p->waitForFinished(500);
+                delete p;
+            }
+        }
+        m_muxProcesses.clear();
+
+        for (auto* yt : m_videoWorkers) {
+            if (yt) {
+                yt->stop();
+                delete yt;
+            }
+        }
+        m_videoWorkers.clear();
+
+        for (auto& workers : m_activeWorkers) {
+            for (auto* w : workers) {
+                if (w) {
+                    w->stop();
+                    delete w;
+                }
+            }
+        }
+        m_activeWorkers.clear();
+
+        for (auto& file : m_taskFiles) {
+            if (file && file->isOpen()) {
+                file->flush();
+                file->close();
+            }
+        }
+        m_taskFiles.clear();
+
+        flushSaveTasks();
+    }
+
     const QVector<DownloadTask>& tasks() const { return m_tasks; }
     DownloadTask* findTask(const QString& id) {
         for (auto& t : m_tasks) {
@@ -1044,8 +1083,11 @@ private:
     void stopWorkers(const QString& taskId) {
         if (m_muxProcesses.contains(taskId)) {
             auto* p = m_muxProcesses[taskId];
-            p->kill();
-            p->deleteLater();
+            if (p) {
+                p->kill();
+                p->waitForFinished(500);
+                delete p;
+            }
             m_muxProcesses.remove(taskId);
         }
         // Clean up any temp mux file for this taskId
@@ -1057,16 +1099,20 @@ private:
         }
         if (m_videoWorkers.contains(taskId)) {
             auto* yt = m_videoWorkers[taskId];
-            yt->stop();
-            yt->deleteLater();
+            if (yt) {
+                yt->stop();
+                delete yt;
+            }
             m_videoWorkers.remove(taskId);
         }
         m_videoRetries.remove(taskId);
 
         if (m_activeWorkers.contains(taskId)) {
             for (auto* w : m_activeWorkers[taskId]) {
-                w->stop();
-                w->deleteLater();
+                if (w) {
+                    w->stop();
+                    delete w;
+                }
             }
             m_activeWorkers.remove(taskId);
         }

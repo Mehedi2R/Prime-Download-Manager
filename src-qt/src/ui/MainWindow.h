@@ -67,7 +67,7 @@ public:
         if (m_extServer) {
             m_extServer->stop();
         }
-        DownloadManager::instance().flushSaveTasks();
+        DownloadManager::instance().shutdown();
     }
 
     void showWindow() {
@@ -98,7 +98,7 @@ public:
         if (m_extServer) {
             m_extServer->stop();
         }
-        DownloadManager::instance().flushSaveTasks();
+        DownloadManager::instance().shutdown();
         if (m_trayIcon) {
             m_trayIcon->hide();
         }

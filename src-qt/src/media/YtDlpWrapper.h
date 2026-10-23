@@ -701,10 +701,18 @@ public:
 
             if (!recoverySource.isEmpty()) {
                 if (QFile::exists(ffmpeg)) {
-                    QProcess* ffmpegProc = new QProcess(this);
+                    m_ffmpegProc = new QProcess(this);
                     QStringList fArgs = {"-y", "-i", recoverySource, "-c", "copy", targetPath};
-                    connect(ffmpegProc, &QProcess::finished, this, [this, ffmpegProc, recoverySource, targetPath, finishCleanupAndEmit](int fExitCode) {
-                        ffmpegProc->deleteLater();
+                    connect(m_ffmpegProc, &QProcess::started, this, [this]() {
+#ifdef Q_OS_WIN
+                        if (m_ffmpegProc) assignProcessToChildJob(m_ffmpegProc->processId());
+#endif
+                    });
+                    connect(m_ffmpegProc, &QProcess::finished, this, [this, recoverySource, targetPath, finishCleanupAndEmit](int fExitCode) {
+                        if (m_ffmpegProc) {
+                            m_ffmpegProc->deleteLater();
+                            m_ffmpegProc = nullptr;
+                        }
                         bool okRemux = (fExitCode == 0 && QFile::exists(targetPath));
                         if (okRemux) {
                             QFile::remove(recoverySource);
@@ -715,10 +723,7 @@ public:
                         }
                         finishCleanupAndEmit(okRemux);
                     });
-                    ffmpegProc->start(ffmpeg, fArgs);
-#ifdef Q_OS_WIN
-                    assignProcessToChildJob(ffmpegProc->processId());
-#endif
+                    m_ffmpegProc->start(ffmpeg, fArgs);
                     return;
                 } else {
                     QFile::remove(targetPath);
@@ -753,6 +758,18 @@ public:
             m_process->waitForFinished(1000);
             delete m_process;
             m_process = nullptr;
+        }
+        if (m_ffmpegProc) {
+#ifdef Q_OS_WIN
+            qint64 pid = m_ffmpegProc->processId();
+            if (pid > 0) {
+                QProcess::execute("taskkill", {"/F", "/T", "/PID", QString::number(pid)});
+            }
+#endif
+            m_ffmpegProc->kill();
+            m_ffmpegProc->waitForFinished(1000);
+            delete m_ffmpegProc;
+            m_ffmpegProc = nullptr;
         }
     }
 
@@ -816,4 +833,5 @@ private:
     QByteArray m_stdoutBuffer;
     QProcess* m_process = nullptr;
     QProcess* m_probeProcess = nullptr;
+    QProcess* m_ffmpegProc = nullptr;
 };
