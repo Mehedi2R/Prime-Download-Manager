@@ -110,16 +110,6 @@ protected:
         if (!m_reallyQuit) {
             event->ignore();
             hide();
-            static bool s_balloonShown = false;
-            if (!s_balloonShown && m_trayIcon && m_trayIcon->isVisible()) {
-                m_trayIcon->showMessage(
-                    "Prime Download Manager",
-                    "Application is minimized to the system tray and running in the background.\nClick or double-click the tray icon to restore.",
-                    QSystemTrayIcon::Information,
-                    2500
-                );
-                s_balloonShown = true;
-            }
         } else {
             DownloadManager::instance().flushSaveTasks();
             if (m_trayIcon) {

@@ -10,8 +10,7 @@ echo ========================================================
 echo.
 
 :: 1. Terminate running instance if any to prevent file locking
-taskkill /F /IM PrimeDownloadManager.exe 2>nul
-ping 127.0.0.1 -n 2 >nul
+powershell -NoProfile -Command "Stop-Process -Name PrimeDownloadManager -Force -ErrorAction SilentlyContinue" 2>nul
 
 :: 2. Find Visual Studio Compiler Environment
 set "VS_PATH="
@@ -25,16 +24,20 @@ if not defined VS_PATH (
     echo [ERROR] Visual Studio C++ Compiler was not detected on this machine.
     echo Please install Visual Studio Community / Professional with C++ Desktop Development.
     echo.
+    if not "%1"=="--nopause" (
     pause
+)
     exit /b 1
 )
 
-echo [INFO] Found Visual Studio at: !VS_PATH!
-call "!VS_PATH!\VC\Auxiliary\Build\vcvars64.bat"
+echo [INFO] Found Visual Studio at: %VS_PATH%
+call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Failed to initialize MSVC 64-bit environment.
     echo.
+    if not "%1"=="--nopause" (
     pause
+)
     exit /b %ERRORLEVEL%
 )
 
@@ -109,7 +112,9 @@ if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERROR] CMake configuration failed.
     cd ..
+    if not "%1"=="--nopause" (
     pause
+)
     exit /b %ERRORLEVEL%
 )
 
@@ -121,7 +126,9 @@ if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERROR] Compilation failed.
     cd ..
+    if not "%1"=="--nopause" (
     pause
+)
     exit /b %ERRORLEVEL%
 )
 
@@ -129,11 +136,28 @@ echo.
 echo [INFO] Deploying Qt runtime DLLs...
 if defined QT_DIR (
     if exist "!QT_DIR!\bin\windeployqt.exe" (
-        "!QT_DIR!\bin\windeployqt.exe" --release "Release\PrimeDownloadManager.exe"
+        "!QT_DIR!\bin\windeployqt.exe" --release --compiler-runtime "Release\PrimeDownloadManager.exe"
     )
 )
 
-:: 6. Copy embedded media tools to Release\bin directory
+:: 6. Bundle MSVC C++ Runtime DLLs for zero-dependency standalone execution
+echo.
+echo [INFO] Bundling MSVC C++ Runtime DLLs (vcruntime140, msvcp140, etc.) for zero-dependency execution...
+set "CRT_FOUND=0"
+for /d %%v in ("!VS_PATH!\VC\Redist\MSVC\*") do (
+    for /d %%c in ("%%v\x64\Microsoft.VC*.CRT") do (
+        if exist "%%c\vcruntime140.dll" (
+            echo [INFO] Copying CRT DLLs from: %%c
+            copy /y "%%c\*.dll" "Release\" >nul
+            set "CRT_FOUND=1"
+        )
+    )
+)
+if "!CRT_FOUND!"=="0" (
+    echo [WARNING] MSVC CRT redistributable directory not found under VS_PATH.
+)
+
+:: 7. Copy embedded media tools to Release\bin directory
 if not exist "Release\bin" mkdir "Release\bin"
 if exist "..\bin\yt-dlp.exe" (
     copy /y "..\bin\yt-dlp.exe" "Release\bin\yt-dlp.exe" >nul
@@ -142,7 +166,7 @@ if exist "..\bin\ffmpeg.exe" (
     copy /y "..\bin\ffmpeg.exe" "Release\bin\ffmpeg.exe" >nul
 )
 
-:: 7. Clean unnecessary windeployqt bloat
+:: 8. Clean unnecessary windeployqt bloat
 del /q "Release\opengl32sw.dll" 2>nul
 del /q "Release\d3dcompiler_47.dll" 2>nul
 del /q "Release\dxcompiler.dll" 2>nul
@@ -165,4 +189,6 @@ echo  Executable: src-qt\build\Release\PrimeDownloadManager.exe
 echo  Media Tools: src-qt\build\Release\bin\ (ffmpeg, yt-dlp)
 echo ========================================================
 echo.
-pause
+if not "%1"=="--nopause" (
+    pause
+)

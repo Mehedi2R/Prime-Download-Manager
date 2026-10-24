@@ -33,11 +33,34 @@ static void logHandler(QtMsgType type, const QMessageLogContext &context, const 
     }
 }
 
+#ifdef Q_OS_WIN
+static LONG WINAPI PdmUnhandledExceptionFilter(EXCEPTION_POINTERS* ep) {
+    QString tempDir = QDir::tempPath() + "/PrimeDownloadManager";
+    QDir().mkpath(tempDir);
+    QFile f(tempDir + "/crash.log");
+    if (f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        QTextStream ts(&f);
+        ts << "=== CRASH OCCURRED ===" << "\n";
+        ts << "Time: " << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << "\n";
+        if (ep && ep->ExceptionRecord) {
+            ts << "Exception Code: 0x" << QString::number(ep->ExceptionRecord->ExceptionCode, 16).toUpper() << "\n";
+            ts << "Address: " << ep->ExceptionRecord->ExceptionAddress << "\n";
+        }
+        ts << "======================\n\n";
+        ts.flush();
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 int main(int argc, char *argv[]) {
     // High-DPI scaling configuration for crisp rendering on modern displays
     qputenv("QT_ENABLE_HIGHDPI_SCALING", "1");
 
     qInstallMessageHandler(logHandler);
+#ifdef Q_OS_WIN
+    SetUnhandledExceptionFilter(PdmUnhandledExceptionFilter);
+#endif
     qWarning() << "[MAIN] Prime Download Manager starting, args:" << argc;
 #ifdef Q_OS_WIN
     WSADATA wsaData;
