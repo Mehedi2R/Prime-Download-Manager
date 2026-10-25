@@ -3,8 +3,8 @@
 IDI_ICON1 ICON "icons/app_logo.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     3,0,46,0
-PRODUCTVERSION  3,0,46,0
+FILEVERSION     3,0,47,0
+PRODUCTVERSION  3,0,47,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS       VS_FF_DEBUG
@@ -21,12 +21,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "@Mehedi2R\0"
             VALUE "FileDescription",  "Prime Download Manager\0"
-            VALUE "FileVersion",      "3.0.46.0\0"
+            VALUE "FileVersion",      "3.0.47.0\0"
             VALUE "InternalName",     "PrimeDownloadManager.exe\0"
             VALUE "LegalCopyright",   "Copyright (C) 2026 @Mehedi2R. All rights reserved.\0"
             VALUE "OriginalFilename", "PrimeDownloadManager.exe\0"
             VALUE "ProductName",      "Prime Download Manager\0"
-            VALUE "ProductVersion",   "3.0.46\0"
+            VALUE "ProductVersion",   "3.0.47\0"
         END
     END
     BLOCK "VarFileInfo"

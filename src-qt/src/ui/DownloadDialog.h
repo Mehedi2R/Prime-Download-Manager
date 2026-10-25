@@ -369,6 +369,9 @@ public:
     bool startImmediately() const { return !m_startLater; }
     QString audioUrl() const { return m_audioUrl; }
     void setAudioUrl(const QString& a) { m_audioUrl = a; }
+    bool supportsRanges() const { return m_supportsRanges; }
+    QString eTag() const { return m_eTag; }
+    QString lastModified() const { return m_lastModified; }
 
     ~DownloadDialog() {
         if (m_activeProbe) {
@@ -1094,6 +1097,10 @@ private:
 
             if (self->m_formatCombo) self->m_formatCombo->blockSignals(true);
 
+            self->m_supportsRanges = res.supportsRanges;
+            self->m_eTag = res.eTag;
+            self->m_lastModified = res.lastModified;
+
             if (self->m_isVideo) {
                 self->updateFormatOrSizeUI(true);
                 if (!res.fileName.isEmpty()) {
@@ -1175,5 +1182,8 @@ private:
     bool m_isVideo = false;
     QString m_chosenQuality;
     QString m_audioUrl;
+    bool m_supportsRanges = true;
+    QString m_eTag;
+    QString m_lastModified;
     QPoint m_dragPos;
 };

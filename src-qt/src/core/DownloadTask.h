@@ -35,6 +35,9 @@ public:
     QString referer;
     QString description;
     double customPercent = -1.0;
+    QString eTag;
+    QString lastModified;
+    bool supportsRange = true;
 
     double progressPercent() const {
         if (status == "Completed") return 100.0;
@@ -61,6 +64,9 @@ public:
         j["audio_url"] = audioUrl;
         j["referer"] = referer;
         j["description"] = description;
+        j["e_tag"] = eTag;
+        j["last_modified"] = lastModified;
+        j["supports_range"] = supportsRange;
 
         QJsonArray segArr;
         for (const auto& s : segments) {
@@ -95,6 +101,9 @@ public:
         t.audioUrl = j["audio_url"].toString();
         t.referer = j["referer"].toString();
         t.description = j["description"].toString();
+        t.eTag = j["e_tag"].toString();
+        t.lastModified = j["last_modified"].toString();
+        t.supportsRange = j["supports_range"].toBool(true);
 
         QJsonArray segArr = j["segments"].toArray();
         for (const auto& val : segArr) {

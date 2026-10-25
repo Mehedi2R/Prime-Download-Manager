@@ -29,14 +29,16 @@ struct ProbeResult {
     QVector<VideoFormatOption> videoFormats;
     bool success = false;
     QString errorMessage;
+    QString eTag;
+    QString lastModified;
 };
 
 class UrlProbe : public QObject {
     Q_OBJECT
 public:
     explicit UrlProbe(QObject* parent = nullptr) : QObject(parent) {
-        // 35-second safety timeout so a probe never hangs or leaks
-        QTimer::singleShot(35000, this, [this]() {
+        // High-performance watchdog timer: 3.5s for direct downloads, 15s for video portals
+        QTimer::singleShot(15000, this, [this]() {
             if (!m_finished) {
                 m_finished = true;
                 if (m_currentReply) {
@@ -285,15 +287,25 @@ private:
 
         QNetworkRequest req;
         req.setUrl(QUrl(url));
-        req.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
         req.setRawHeader("Accept", "*/*");
         req.setRawHeader("Accept-Encoding", "identity");
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        // Force HTTP/1.1 for lightweight probing to eliminate Qt HTTP/2 stream close crashes
         req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
 
         QNetworkReply* reply = sharedNam()->head(req);
         m_currentReply = reply;
+
+        // Ultra-fast 1200ms fallback: if server delays HEAD response, immediately switch to Range GET
+        QTimer::singleShot(1200, this, [this, reply, url, redirectCount]() {
+            if (!m_finished && m_currentReply == reply) {
+                reply->disconnect(this);
+                reply->abort();
+                reply->deleteLater();
+                tryRangeGet(url, redirectCount);
+            }
+        });
+
         connect(reply, &QNetworkReply::finished, this, [this, reply, url, redirectCount]() {
             handleHeadReply(reply, url, redirectCount);
         });
@@ -314,7 +326,7 @@ private:
 
         if (reply->error() != QNetworkReply::NoError) {
             reply->deleteLater();
-            // Some servers reject HEAD with 405 or 403, fallback to GET range 0-0
+            // Immediate fallback to single-roundtrip Range: bytes=0-1
             tryRangeGet(url, 0);
             return;
         }
@@ -340,15 +352,31 @@ private:
 
         QNetworkRequest req;
         req.setUrl(QUrl(url));
-        req.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
         req.setRawHeader("Accept", "*/*");
-        req.setRawHeader("Range", "bytes=0-0");
+        req.setRawHeader("Range", "bytes=0-1");
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        // Force HTTP/1.1 for range probing
         req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
 
         QNetworkReply* reply = sharedNam()->get(req);
         m_currentReply = reply;
+
+        // Instant response on metaDataChanged: parse headers and abort body to avoid waiting for data
+        connect(reply, &QNetworkReply::metaDataChanged, this, [this, reply, url]() {
+            if (m_finished || !reply) return;
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 206 || (statusCode == 200 && reply->hasRawHeader("Content-Length"))) {
+                reply->disconnect(this);
+                ProbeResult res = parseReplyHeaders(reply, url);
+                m_finished = true;
+                res.success = true;
+                reply->abort(); // Abort reading body data immediately!
+                reply->deleteLater();
+                if (m_currentReply == reply) m_currentReply = nullptr;
+                emit probeFinished(res);
+            }
+        });
+
         connect(reply, &QNetworkReply::finished, this, [this, reply, url, redirectCount]() {
             if (m_finished || !reply) return;
             reply->disconnect(this);
@@ -404,10 +432,21 @@ private:
         }
 
         // Accept Ranges
-        if (reply->hasRawHeader("Accept-Ranges")) {
+        int sc = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (sc == 206) {
+            res.supportsRanges = true;
+        } else if (reply->hasRawHeader("Accept-Ranges")) {
             res.supportsRanges = reply->rawHeader("Accept-Ranges").toLower().contains("bytes");
         } else {
             res.supportsRanges = (res.totalSize > 0);
+        }
+
+        // Cache Validation Headers
+        if (reply->hasRawHeader("ETag")) {
+            res.eTag = QString::fromUtf8(reply->rawHeader("ETag")).trimmed();
+        }
+        if (reply->hasRawHeader("Last-Modified")) {
+            res.lastModified = QString::fromUtf8(reply->rawHeader("Last-Modified")).trimmed();
         }
 
         // MIME type

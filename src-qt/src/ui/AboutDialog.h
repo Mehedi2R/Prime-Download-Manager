@@ -13,6 +13,7 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
+#include "../Version.h"
 
 class AboutDialog : public QDialog {
     Q_OBJECT
@@ -127,7 +128,7 @@ private:
         mainLayout->addWidget(lblTitle);
 
         // Version
-        QLabel* lblVersion = new QLabel("Version: 3.0.46", this);
+        QLabel* lblVersion = new QLabel(QString("Version: %1").arg(APP_VERSION), this);
         lblVersion->setStyleSheet("font-size: 12px; color: #94a3b8; font-weight: 500;");
         lblVersion->setAlignment(Qt::AlignCenter);
         mainLayout->addWidget(lblVersion);

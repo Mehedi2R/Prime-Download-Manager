@@ -1,0 +1,39 @@
+name: Build & Package Prime Download Manager
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.8.0'
+          arch: 'win64_msvc2022_64'
+          modules: 'qt5compat'
+
+      - name: Setup Inno Setup
+        run: choco install innosetup --no-progress
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -A x64 -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
+
+      - name: Build Application & Standalone Installer
+        run: |
+          cmake --build build --config Release --target installer
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrimeDownloadManager_Setup
+          path: dist/PrimeDownloadManager_Setup.exe

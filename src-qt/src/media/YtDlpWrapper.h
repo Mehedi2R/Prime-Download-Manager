@@ -66,6 +66,21 @@ public:
     }
 #endif
 
+    static void directKillProcess(QProcess* proc) {
+        if (!proc) return;
+#ifdef Q_OS_WIN
+        qint64 pid = proc->processId();
+        if (pid > 0) {
+            HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+            if (hProcess) {
+                TerminateProcess(hProcess, 1);
+                CloseHandle(hProcess);
+            }
+        }
+#endif
+        proc->kill();
+    }
+
     static QString findExecutable(const QString& name) {
         QString appDir = QCoreApplication::applicationDirPath();
         QString localApp = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
@@ -97,7 +112,7 @@ public:
         for (const auto& c : candidates) {
             if (QFile::exists(c)) return QDir::cleanPath(c);
         }
-        return "node";
+        return QString();
     }
 
     static QString formatSizeStr(quint64 bytes) {
@@ -114,15 +129,9 @@ public:
 
     void stopProbe() {
         if (m_probeProcess) {
-#ifdef Q_OS_WIN
-            qint64 pid = m_probeProcess->processId();
-            if (pid > 0) {
-                QProcess::execute("taskkill", {"/F", "/T", "/PID", QString::number(pid)});
-            }
-#endif
-            m_probeProcess->kill();
-            m_probeProcess->waitForFinished(500);
-            delete m_probeProcess;
+            directKillProcess(m_probeProcess);
+            m_probeProcess->disconnect(this);
+            m_probeProcess->deleteLater();
             m_probeProcess = nullptr;
         }
     }
@@ -152,13 +161,13 @@ public:
         }
         args << url;
 
-        // 30-second safety timeout so yt-dlp has ample time for YouTube extraction while never hanging
+        // 10-second safety watchdog for video extraction
         QTimer* probeKillTimer = new QTimer(proc);
         probeKillTimer->setSingleShot(true);
         connect(probeKillTimer, &QTimer::timeout, this, [this]() {
             stopProbe();
         });
-        probeKillTimer->start(30000);
+        probeKillTimer->start(10000);
 
         connect(proc, &QProcess::finished, this, [this, proc, url, retryWithoutCookies, usedCookies](int exitCode) {
             if (m_probeProcess == proc) m_probeProcess = nullptr;
@@ -748,27 +757,15 @@ public:
     void stop() {
         stopProbe();
         if (m_process) {
-#ifdef Q_OS_WIN
-            qint64 pid = m_process->processId();
-            if (pid > 0) {
-                QProcess::execute("taskkill", {"/F", "/T", "/PID", QString::number(pid)});
-            }
-#endif
-            m_process->kill();
-            m_process->waitForFinished(1000);
-            delete m_process;
+            directKillProcess(m_process);
+            m_process->disconnect(this);
+            m_process->deleteLater();
             m_process = nullptr;
         }
         if (m_ffmpegProc) {
-#ifdef Q_OS_WIN
-            qint64 pid = m_ffmpegProc->processId();
-            if (pid > 0) {
-                QProcess::execute("taskkill", {"/F", "/T", "/PID", QString::number(pid)});
-            }
-#endif
-            m_ffmpegProc->kill();
-            m_ffmpegProc->waitForFinished(1000);
-            delete m_ffmpegProc;
+            directKillProcess(m_ffmpegProc);
+            m_ffmpegProc->disconnect(this);
+            m_ffmpegProc->deleteLater();
             m_ffmpegProc = nullptr;
         }
     }

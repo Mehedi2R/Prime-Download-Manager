@@ -18,6 +18,7 @@
 #include "../core/DownloadManager.h"
 #include "../core/UrlProbe.h"
 #include "../media/YtDlpWrapper.h"
+#include "../Version.h"
 
 class ExtensionServer : public QObject {
     Q_OBJECT
@@ -47,11 +48,13 @@ public:
             });
 
             m_server->Get("/health", [](const httplib::Request&, httplib::Response& res) {
-                res.set_content(R"({"status":"ok","version":"3.0.46","service":"Prime Download Manager"})", "application/json");
+                std::string body = std::string("{\"status\":\"ok\",\"version\":\"") + APP_VERSION + "\",\"service\":\"Prime Download Manager\"}";
+                res.set_content(body, "application/json");
             });
 
             m_server->Get("/ping", [](const httplib::Request&, httplib::Response& res) {
-                res.set_content(R"({"status":"ok","app":"Prime Download Manager","version":"3.0.46"})", "application/json");
+                std::string body = std::string("{\"status\":\"ok\",\"app\":\"Prime Download Manager\",\"version\":\"") + APP_VERSION + "\"}";
+                res.set_content(body, "application/json");
             });
 
             m_server->Post("/log_error", [](const httplib::Request& req, httplib::Response& res) {
@@ -192,7 +195,8 @@ public:
                     probe->probe(url);
                 });
 
-                if (future.wait_for(std::chrono::seconds(32)) == std::future_status::ready) {
+                // 3.5s maximum wait time for pre-flight probe: guarantees instant 1-3s startup like IDM
+                if (future.wait_for(std::chrono::milliseconds(3500)) == std::future_status::ready) {
                     QJsonObject root = future.get();
                     {
                         std::lock_guard<std::mutex> lock(m_probeCacheMutex);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PDM Extension",
-  "version": "3.0.46",
+  "version": "3.0.47",
   "description": "High-Speed PDM Extension for Chrome, Brave, Edge, Firefox, and Opera with Turbo Multi-Socket Download Acceleration and Video Sniffer.",
   "permissions": [
     "downloads",

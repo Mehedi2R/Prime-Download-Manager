@@ -8,10 +8,12 @@
 #include <QFile>
 #include <QUuid>
 #include <QTimer>
+#include <QThreadPool>
 #include "DownloadTask.h"
 #include "SegmentWorker.h"
 #include "CategoryRules.h"
 #include "MirrorHealer.h"
+#include "FastStorageAllocator.h"
 #include "../media/YtDlpWrapper.h"
 
 class DownloadManager : public QObject {
@@ -30,9 +32,9 @@ public:
     void shutdown() {
         for (auto* p : m_muxProcesses) {
             if (p) {
-                p->kill();
-                p->waitForFinished(500);
-                delete p;
+                YtDlpWrapper::directKillProcess(p);
+                p->disconnect();
+                p->deleteLater();
             }
         }
         m_muxProcesses.clear();
@@ -40,7 +42,8 @@ public:
         for (auto* yt : m_videoWorkers) {
             if (yt) {
                 yt->stop();
-                delete yt;
+                yt->disconnect();
+                yt->deleteLater();
             }
         }
         m_videoWorkers.clear();
@@ -49,7 +52,8 @@ public:
             for (auto* w : workers) {
                 if (w) {
                     w->stop();
-                    delete w;
+                    w->disconnect();
+                    w->deleteLater();
                 }
             }
         }
@@ -62,7 +66,7 @@ public:
             }
         }
         m_taskFiles.clear();
-
+        m_taskMutexes.clear();
         flushSaveTasks();
     }
 
@@ -411,7 +415,10 @@ public:
         const QString& webpageUrl = "",
         const QString& formatQuality = "best",
         bool startImmediately = true,
-        const QString& audioUrl = ""
+        const QString& audioUrl = "",
+        const QString& eTag = "",
+        const QString& lastModified = "",
+        bool supportsRange = true
     ) {
         if (isUrlBlocked(rawUrl, webpageUrl)) {
             logError("DOWNLOAD:BLOCKED", "Automatic download cancelled: URL matches exclusion list", rawUrl);
@@ -474,44 +481,57 @@ public:
         task.webpageUrl = webpageUrl;
         task.audioUrl = (webpageUrl.contains("instagram.com") || healedUrl.contains("instagram.com")) ? "" : audioUrl;
         task.status = startImmediately ? "Connecting..." : "Paused";
+        task.eTag = eTag;
+        task.lastModified = lastModified;
+        task.supportsRange = supportsRange;
 
         // Build initial segments for HTTP downloads
         if (!isVid) {
-            // Intelligent thread scaling: Prevents aggressive CDN throttling (Telegram, GitHub, etc.)
-            int safeThreads = threads;
-            if (totalSize > 0) {
-                if (totalSize < 5 * 1024 * 1024) safeThreads = qMin(safeThreads, 4);
-                else if (totalSize < 30 * 1024 * 1024) safeThreads = qMin(safeThreads, 8);
-                else if (totalSize < 100 * 1024 * 1024) safeThreads = qMin(safeThreads, 16);
-            } else {
-                safeThreads = qMin(safeThreads, 8);
-            }
-            task.segmentsCount = qBound(1, safeThreads, 32);
-
-            if (totalSize > 0) {
-                QFile preAllocFile(savePath);
-                if (preAllocFile.open(QIODevice::ReadWrite)) {
-                    preAllocFile.resize(totalSize);
-                    preAllocFile.close();
-                }
-                quint64 chunkSize = totalSize / task.segmentsCount;
-                for (int i = 0; i < task.segmentsCount; ++i) {
-                    SegmentProgress seg;
-                    seg.id = i;
-                    seg.start = i * chunkSize;
-                    seg.end = (i == task.segmentsCount - 1) ? (totalSize - 1) : ((i + 1) * chunkSize - 1);
-                    seg.downloaded = 0;
-                    seg.percent = 0.0;
-                    seg.speed = 0.0;
-                    task.segments.append(seg);
-                }
-            } else {
+            if (!task.supportsRange) {
+                // Non-resumable / no byte ranges -> standard single stream from byte 0
+                task.segmentsCount = 1;
                 SegmentProgress seg;
                 seg.id = 0;
                 seg.start = 0;
-                seg.end = 0;
+                seg.end = (totalSize > 0) ? (totalSize - 1) : 0;
                 seg.downloaded = 0;
+                seg.percent = 0.0;
+                seg.speed = 0.0;
                 task.segments.append(seg);
+            } else {
+                // Intelligent thread scaling: Prevents aggressive CDN throttling (Telegram, GitHub, etc.)
+                int safeThreads = threads;
+                if (totalSize > 0) {
+                    if (totalSize < 5 * 1024 * 1024) safeThreads = qMin(safeThreads, 4);
+                    else if (totalSize < 30 * 1024 * 1024) safeThreads = qMin(safeThreads, 8);
+                    else if (totalSize < 100 * 1024 * 1024) safeThreads = qMin(safeThreads, 16);
+                } else {
+                    safeThreads = qMin(safeThreads, 8);
+                }
+                task.segmentsCount = qBound(1, safeThreads, 32);
+
+                if (totalSize > 0) {
+                    // Instant zero-fill-free sparse file allocation (<1ms)
+                    FastStorageAllocator::allocateFileInstantly(savePath, totalSize);
+                    quint64 chunkSize = totalSize / task.segmentsCount;
+                    for (int i = 0; i < task.segmentsCount; ++i) {
+                        SegmentProgress seg;
+                        seg.id = i;
+                        seg.start = i * chunkSize;
+                        seg.end = (i == task.segmentsCount - 1) ? (totalSize - 1) : ((i + 1) * chunkSize - 1);
+                        seg.downloaded = 0;
+                        seg.percent = 0.0;
+                        seg.speed = 0.0;
+                        task.segments.append(seg);
+                    }
+                } else {
+                    SegmentProgress seg;
+                    seg.id = 0;
+                    seg.start = 0;
+                    seg.end = 0;
+                    seg.downloaded = 0;
+                    task.segments.append(seg);
+                }
             }
         }
 
@@ -588,63 +608,75 @@ public:
 
     void removeDownload(const QString& taskId, bool deleteFile = false) {
         stopWorkers(taskId);
+        QString targetSavePath;
         for (int i = 0; i < m_tasks.size(); ++i) {
             if (m_tasks[i].id == taskId) {
-                if (deleteFile) {
-                    QString sp = m_tasks[i].savePath;
-                    auto safeDelete = [](const QString& filePath) {
-                        if (filePath.isEmpty()) return;
-                        if (QFile::exists(filePath)) {
-                            QFile::setPermissions(filePath, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner |
-                                                            QFile::ReadUser | QFile::WriteUser | QFile::ExeUser);
-                            if (!QFile::remove(filePath)) {
-#ifdef Q_OS_WIN
-                                DeleteFileW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(filePath).utf16()));
-#endif
-                            }
-                        }
-                    };
-
-                    safeDelete(sp);
-                    safeDelete(sp + ".part");
-                    safeDelete(sp + ".ytdl");
-                    safeDelete(sp + ".temp");
-
-                    QFileInfo fi(sp);
-                    QDir parentDir = fi.dir();
-                    QString base = fi.fileName();
-                    QString completeBase = fi.completeBaseName();
-
-                    // If target was a video/audio download, clean up any associated intermediate streams
-                    QString targetExt = fi.suffix().toLower();
-                    if (targetExt == "mp4" || targetExt == "mkv" || targetExt == "webm" || targetExt == "ts") {
-                        safeDelete(parentDir.filePath(completeBase + ".m4a"));
-                        safeDelete(parentDir.filePath(completeBase + ".mp3"));
-                    }
-
-                    QStringList filters;
-                    filters << base + "*.part*" << base + "*.temp*" << base + "*.ytdl*"
-                            << base + "*.f[0-9]*" << completeBase + "*.f[0-9]*"
-                            << completeBase + "*.temp*" << completeBase + "*.aria2*";
-                    QStringList extraFiles = parentDir.entryList(filters, QDir::Files);
-                    for (const QString& ef : extraFiles) {
-                        safeDelete(parentDir.filePath(ef));
-                    }
-
-                    QDir tempD(tempPath());
-                    QStringList tempFilters;
-                    tempFilters << taskId + "*" << completeBase + "*";
-                    QStringList tempExtra = tempD.entryList(tempFilters, QDir::Files);
-                    for (const QString& te : tempExtra) {
-                        safeDelete(tempD.filePath(te));
-                    }
-                }
+                targetSavePath = m_tasks[i].savePath;
                 m_tasks.removeAt(i);
                 break;
             }
         }
         saveTasks();
         emit taskRemoved(taskId);
+
+        if (deleteFile && !targetSavePath.isEmpty()) {
+            QString sp = targetSavePath;
+            QString tId = taskId;
+            QString tPath = tempPath();
+            QThreadPool::globalInstance()->start([sp, tId, tPath]() {
+                auto safeDelete = [](const QString& filePath) {
+                    if (filePath.isEmpty()) return;
+                    for (int attempt = 0; attempt < 5; ++attempt) {
+                        if (!QFile::exists(filePath)) break;
+                        QFile::setPermissions(filePath, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner |
+                                                        QFile::ReadUser | QFile::WriteUser | QFile::ExeUser);
+                        if (QFile::remove(filePath)) {
+                            break;
+                        }
+#ifdef Q_OS_WIN
+                        if (DeleteFileW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(filePath).utf16()))) {
+                            break;
+                        }
+#endif
+                        QThread::msleep(80);
+                    }
+                };
+
+                safeDelete(sp);
+                safeDelete(sp + ".part");
+                safeDelete(sp + ".ytdl");
+                safeDelete(sp + ".temp");
+
+                QFileInfo fi(sp);
+                QDir parentDir = fi.dir();
+                QString base = fi.fileName();
+                QString completeBase = fi.completeBaseName();
+
+                // If target was a video/audio download, clean up any associated intermediate streams
+                QString targetExt = fi.suffix().toLower();
+                if (targetExt == "mp4" || targetExt == "mkv" || targetExt == "webm" || targetExt == "ts") {
+                    safeDelete(parentDir.filePath(completeBase + ".m4a"));
+                    safeDelete(parentDir.filePath(completeBase + ".mp3"));
+                }
+
+                QStringList filters;
+                filters << base + "*.part*" << base + "*.temp*" << base + "*.ytdl*"
+                        << base + "*.f[0-9]*" << completeBase + "*.f[0-9]*"
+                        << completeBase + "*.temp*" << completeBase + "*.aria2*";
+                QStringList extraFiles = parentDir.entryList(filters, QDir::Files);
+                for (const QString& ef : extraFiles) {
+                    safeDelete(parentDir.filePath(ef));
+                }
+
+                QDir tempD(tPath);
+                QStringList tempFilters;
+                tempFilters << tId + "*" << completeBase + "*";
+                QStringList tempExtra = tempD.entryList(tempFilters, QDir::Files);
+                for (const QString& te : tempExtra) {
+                    safeDelete(tempD.filePath(te));
+                }
+            });
+        }
     }
 
     void logError(const QString& category, const QString& message, const QString& details = "") {
@@ -786,7 +818,7 @@ private:
 
         if (task->segments.isEmpty()) {
             if (task->totalSize > 0) {
-                sharedFile->resize(task->totalSize);
+                FastStorageAllocator::allocateFileInstantly(task->savePath, task->totalSize);
                 quint64 chunkSize = task->totalSize / task->segmentsCount;
                 for (int i = 0; i < task->segmentsCount; ++i) {
                     SegmentProgress seg;
@@ -808,7 +840,7 @@ private:
             }
             saveTasks();
         } else if (task->totalSize > 0 && sharedFile->size() < static_cast<qint64>(task->totalSize)) {
-            sharedFile->resize(task->totalSize);
+            FastStorageAllocator::allocateFileInstantly(task->savePath, task->totalSize);
         }
 
         m_taskFiles[taskId] = sharedFile;
@@ -816,7 +848,19 @@ private:
         QVector<SegmentWorker*> workers;
         for (int i = 0; i < task->segments.size(); ++i) {
             const auto& seg = task->segments[i];
-            SegmentWorker* w = new SegmentWorker(seg.id, task->url, task->savePath, seg.start, seg.end, seg.downloaded, sharedFile, fileMutex, this);
+            SegmentWorker* w = new SegmentWorker(
+                seg.id, task->url, task->savePath, seg.start, seg.end, seg.downloaded,
+                sharedFile, fileMutex, task->eTag, task->lastModified, this
+            );
+
+            connect(w, &SegmentWorker::headersDiscovered, this, [this, taskId](const QString& etag, const QString& lmod) {
+                DownloadTask* t = findTask(taskId);
+                if (t) {
+                    if (!etag.isEmpty()) t->eTag = etag;
+                    if (!lmod.isEmpty()) t->lastModified = lmod;
+                    saveTasks();
+                }
+            });
             
             connect(w, &SegmentWorker::totalSizeDiscovered, this, [this, taskId](quint64 sz) {
                 DownloadTask* t = findTask(taskId);
@@ -1082,13 +1126,12 @@ private:
 
     void stopWorkers(const QString& taskId) {
         if (m_muxProcesses.contains(taskId)) {
-            auto* p = m_muxProcesses[taskId];
+            auto* p = m_muxProcesses.take(taskId);
             if (p) {
-                p->kill();
-                p->waitForFinished(500);
-                delete p;
+                YtDlpWrapper::directKillProcess(p);
+                p->disconnect();
+                p->deleteLater();
             }
-            m_muxProcesses.remove(taskId);
         }
         // Clean up any temp mux file for this taskId
         QString tempDir = tempPath();
@@ -1098,31 +1141,33 @@ private:
             QFile::remove(td.filePath(te));
         }
         if (m_videoWorkers.contains(taskId)) {
-            auto* yt = m_videoWorkers[taskId];
+            auto* yt = m_videoWorkers.take(taskId);
             if (yt) {
                 yt->stop();
-                delete yt;
+                yt->disconnect();
+                yt->deleteLater();
             }
-            m_videoWorkers.remove(taskId);
         }
         m_videoRetries.remove(taskId);
 
         if (m_activeWorkers.contains(taskId)) {
-            for (auto* w : m_activeWorkers[taskId]) {
+            auto workers = m_activeWorkers.take(taskId);
+            for (auto* w : workers) {
                 if (w) {
                     w->stop();
-                    delete w;
+                    w->disconnect();
+                    w->deleteLater();
                 }
             }
-            m_activeWorkers.remove(taskId);
         }
         if (m_taskFiles.contains(taskId)) {
-            auto file = m_taskFiles[taskId];
-            if (file && file->isOpen()) {
-                file->flush();
-                file->close();
+            auto file = m_taskFiles.take(taskId);
+            if (file) {
+                if (file->isOpen()) {
+                    file->flush();
+                    file->close();
+                }
             }
-            m_taskFiles.remove(taskId);
         }
         if (m_taskMutexes.contains(taskId)) {
             m_taskMutexes.remove(taskId);

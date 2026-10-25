@@ -38,6 +38,7 @@
 #endif
 #include "../core/DownloadManager.h"
 #include "../core/CategoryRules.h"
+#include "../Version.h"
 #include "../ipc/ExtensionServer.h"
 #include "TaskTableModel.h"
 #include "ProgressBarDelegate.h"
@@ -49,7 +50,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget* parent = nullptr) : QMainWindow(parent) {
-        setWindowTitle("Prime Download Manager 3.0.46");
+        setWindowTitle(APP_TITLE);
         setWindowIcon(QIcon(":/icons/app_logo.png"));
         setMinimumSize(935, 520);
         resize(935, 520);
@@ -665,11 +666,12 @@ private:
 
         if (m_trayIcon) {
             if (totalSpeed > 0) {
-                m_trayIcon->setToolTip(QString("Prime Download Manager 3.0.46\nSpeed: %1/s | Active Threads: %2")
+                m_trayIcon->setToolTip(QString("%1\nSpeed: %2/s | Active Threads: %3")
+                    .arg(APP_TITLE)
                     .arg(CategoryRules::formatBytes(static_cast<quint64>(totalSpeed)))
                     .arg(activeThreads));
             } else {
-                m_trayIcon->setToolTip("Prime Download Manager 3.0.46");
+                m_trayIcon->setToolTip(APP_TITLE);
             }
         }
     }
@@ -678,7 +680,7 @@ private:
         if (!QSystemTrayIcon::isSystemTrayAvailable()) return;
 
         m_trayIcon = new QSystemTrayIcon(QIcon(":/icons/app_logo.png"), this);
-        m_trayIcon->setToolTip("Prime Download Manager 3.0.46");
+        m_trayIcon->setToolTip(APP_TITLE);
 
         m_trayMenu = new QMenu(this);
         m_trayMenu->setStyleSheet(
@@ -762,7 +764,10 @@ private:
                         wpUrl,
                         dlg->formatQuality(),
                         dlg->startImmediately(),
-                        dlg->audioUrl()
+                        dlg->audioUrl(),
+                        dlg->eTag(),
+                        dlg->lastModified(),
+                        dlg->supportsRanges()
                     );
                     checkEmptyState();
                 });
@@ -796,7 +801,11 @@ public slots:
                 dlg->threads(),
                 "",
                 dlg->formatQuality(),
-                dlg->startImmediately()
+                dlg->startImmediately(),
+                "",
+                dlg->eTag(),
+                dlg->lastModified(),
+                dlg->supportsRanges()
             );
             checkEmptyState();
         });
@@ -892,6 +901,7 @@ public slots:
                 const DownloadTask* t = m_model->getTaskAt(idx.row());
                 if (t) taskIds.append(t->id);
             }
+            m_table->clearSelection();
             for (const auto& id : taskIds) {
                 DownloadManager::instance().removeDownload(id, true);
             }
@@ -907,6 +917,7 @@ public slots:
         }
         if (!task) return;
 
+        m_table->clearSelection();
         DownloadManager::instance().removeDownload(task->id, true);
         checkEmptyState();
         updateSidebarCounts();
@@ -920,6 +931,7 @@ public slots:
                 const DownloadTask* t = m_model->getTaskAt(idx.row());
                 if (t) taskIds.append(t->id);
             }
+            m_table->clearSelection();
             for (const auto& id : taskIds) {
                 DownloadManager::instance().removeDownload(id, false);
             }
@@ -935,6 +947,7 @@ public slots:
         }
         if (!task) return;
 
+        m_table->clearSelection();
         DownloadManager::instance().removeDownload(task->id, false);
         checkEmptyState();
         updateSidebarCounts();

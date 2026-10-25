@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.8.0/msvc2022_64"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (x64)",
+      "description": "Optimized release build with standalone packaging",
+      "inherits": "windows-base"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "configuration": "Release"
+    },
+    {
+      "name": "installer",
+      "configurePreset": "release",
+      "configuration": "Release",
+      "targets": [
+        "installer"
+      ]
+    }
+  ]
+}

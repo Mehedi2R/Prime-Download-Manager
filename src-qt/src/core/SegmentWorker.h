@@ -10,18 +10,23 @@
 #include <QElapsedTimer>
 #include <QSharedPointer>
 #include <QTimer>
+#include <QRandomGenerator>
 #include <QDebug>
+#include <algorithm>
 #include "MirrorHealer.h"
+#include "UrlProbe.h"
 
 class SegmentWorker : public QObject {
     Q_OBJECT
 public:
     SegmentWorker(int id, const QString& url, const QString& savePath, quint64 start, quint64 end, quint64 downloaded,
-                  QSharedPointer<QFile> sharedFile, QSharedPointer<QMutex> fileMutex, QObject* parent = nullptr)
+                  QSharedPointer<QFile> sharedFile, QSharedPointer<QMutex> fileMutex,
+                  const QString& eTag = "", const QString& lastModified = "", QObject* parent = nullptr)
         : QObject(parent), m_id(id), m_url(url), m_savePath(savePath), m_start(start), m_end(end),
-          m_downloaded(downloaded), m_sharedFile(sharedFile), m_fileMutex(fileMutex) {}
+          m_downloaded(downloaded), m_sharedFile(sharedFile), m_fileMutex(fileMutex),
+          m_eTag(eTag), m_lastModified(lastModified) {}
 
-    ~SegmentWorker() {
+    ~SegmentWorker() override {
         stop();
     }
 
@@ -29,6 +34,8 @@ public:
     quint64 downloaded() const { return m_downloaded; }
     quint64 segmentSize() const { return (m_end >= m_start) ? (m_end - m_start + 1) : 0; }
     bool isCompleted() const { return m_completed; }
+    QString eTag() const { return m_eTag; }
+    QString lastModified() const { return m_lastModified; }
 
 public slots:
     void start() {
@@ -40,7 +47,8 @@ public slots:
 
         m_stopped = false;
         if (!m_nam) {
-            m_nam = new QNetworkAccessManager(this);
+            // Reuses shared engine-level connection pool: eliminates redundant DNS & TLS handshakes
+            m_nam = UrlProbe::sharedNam();
         }
 
         quint64 curStart = m_start + m_downloaded;
@@ -65,6 +73,18 @@ public slots:
         if (m_end > 0) {
             QString rangeHeader = QString("bytes=%1-%2").arg(curStart).arg(m_end);
             req.setRawHeader("Range", rangeHeader.toUtf8());
+        } else if (curStart > 0) {
+            QString rangeHeader = QString("bytes=%1-").arg(curStart);
+            req.setRawHeader("Range", rangeHeader.toUtf8());
+        }
+
+        // Cache validation header (If-Range prevents corruption if remote asset was replaced)
+        if (m_downloaded > 0) {
+            if (!m_eTag.isEmpty()) {
+                req.setRawHeader("If-Range", m_eTag.toUtf8());
+            } else if (!m_lastModified.isEmpty()) {
+                req.setRawHeader("If-Range", m_lastModified.toUtf8());
+            }
         }
 
         m_speedTimer.start();
@@ -101,6 +121,7 @@ signals:
     void retrying(int segmentId, int attempt, int maxAttempts, const QString& reason);
     void error(int segmentId, const QString& errorString);
     void totalSizeDiscovered(quint64 totalBytes);
+    void headersDiscovered(const QString& eTag, const QString& lastModified);
 
 private slots:
     void onReadyRead() {
@@ -108,6 +129,20 @@ private slots:
 
         // Reset retry counter on successful data packet arrival
         m_retryCount = 0;
+
+        // Capture validation tokens if available
+        bool headersUpdated = false;
+        if (m_reply->hasRawHeader("ETag") && m_eTag.isEmpty()) {
+            m_eTag = QString::fromUtf8(m_reply->rawHeader("ETag")).trimmed();
+            headersUpdated = true;
+        }
+        if (m_reply->hasRawHeader("Last-Modified") && m_lastModified.isEmpty()) {
+            m_lastModified = QString::fromUtf8(m_reply->rawHeader("Last-Modified")).trimmed();
+            headersUpdated = true;
+        }
+        if (headersUpdated) {
+            emit headersDiscovered(m_eTag, m_lastModified);
+        }
 
         if (m_start == 0 && m_reply->hasRawHeader("Content-Length")) {
             quint64 cl = m_reply->rawHeader("Content-Length").toULongLong();
@@ -119,6 +154,19 @@ private slots:
             QString errStr = QString("HTTP %1 Error").arg(statusCode);
             handleFailure(errStr);
             return;
+        }
+
+        // Handle server rejecting range request with full 200 OK (asset changed remotely or range ignored)
+        if (m_start == 0 && statusCode == 200 && m_downloaded > 0) {
+            if (m_sharedFile && m_fileMutex) {
+                QMutexLocker locker(m_fileMutex.data());
+                if (m_sharedFile->isOpen()) {
+                    m_sharedFile->seek(0);
+                    m_sharedFile->resize(0);
+                }
+            }
+            m_downloaded = 0;
+            emit progress(m_id, 0, 0.0);
         }
 
         if (m_start > 0 && statusCode != 206 && statusCode != 0) {
@@ -212,7 +260,12 @@ private:
 
         if (m_retryCount < MAX_RETRIES) {
             m_retryCount++;
-            int delayMs = qMin(1000 * m_retryCount, 5000);
+            // Exponential backoff with random jitter: min(1000 * 2^(retry-1), 30000) + jitter
+            int expDelay = 1000 * (1 << (m_retryCount - 1));
+            int boundedDelay = std::min(expDelay, 30000);
+            int jitter = QRandomGenerator::global()->bounded(200, 600);
+            int delayMs = boundedDelay + jitter;
+
             qWarning() << "[SegmentWorker" << m_id << "] Interrupted (" << reason 
                        << "), auto-reconnecting attempt" << m_retryCount << "of" << MAX_RETRIES << "in" << delayMs << "ms";
             emit retrying(m_id, m_retryCount, MAX_RETRIES, reason);
@@ -236,12 +289,14 @@ private:
     quint64 m_downloaded = 0;
     QSharedPointer<QFile> m_sharedFile;
     QSharedPointer<QMutex> m_fileMutex;
+    QString m_eTag;
+    QString m_lastModified;
     QNetworkAccessManager* m_nam = nullptr;
     QNetworkReply* m_reply = nullptr;
     bool m_stopped = false;
     bool m_completed = false;
     int m_retryCount = 0;
-    static const int MAX_RETRIES = 10;
+    static constexpr int MAX_RETRIES = 10;
     QElapsedTimer m_speedTimer;
     QElapsedTimer m_progressTimer;
     quint64 m_speedBytes = 0;
