@@ -163,11 +163,57 @@ if ($Target -eq 'clean') {
         Write-Host "[INFO] Cleaning build directory: $BuildDir" -ForegroundColor Yellow
         Remove-Item -Recurse -Force $BuildDir
     }
+    $DistDir = Join-Path $ProjectRoot "dist"
+    if (Test-Path $DistDir) {
+        Write-Host "[INFO] Cleaning dist directory: $DistDir" -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $DistDir
+    }
     Write-Host "[SUCCESS] Clean completed." -ForegroundColor Green
     exit 0
 }
 
-# 5. CMake Configure
+# 5. Ensure embedded media tools (ffmpeg and yt-dlp) are present; auto-download if missing
+$BinDir = Join-Path $ProjectRoot "src-qt\bin"
+if (-not (Test-Path $BinDir)) {
+    New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
+}
+
+$YtDlp = Join-Path $BinDir "yt-dlp.exe"
+if (-not (Test-Path $YtDlp)) {
+    Write-Host "[AUTO-DOWNLOAD] yt-dlp.exe is missing. Fetching official latest release..." -ForegroundColor Cyan
+    $YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+        Invoke-WebRequest -Uri $YtDlpUrl -OutFile $YtDlp -UseBasicParsing
+        Write-Host "[SUCCESS] yt-dlp.exe downloaded successfully." -ForegroundColor Green
+    } catch {
+        Write-Warning "Failed to auto-download yt-dlp.exe: $_"
+    }
+}
+
+$Ffmpeg = Join-Path $BinDir "ffmpeg.exe"
+if (-not (Test-Path $Ffmpeg)) {
+    Write-Host "[AUTO-DOWNLOAD] ffmpeg.exe is missing. Fetching essentials binary..." -ForegroundColor Cyan
+    $FfmpegZip = Join-Path $env:TEMP "ffmpeg_download.zip"
+    $FfmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+        Invoke-WebRequest -Uri $FfmpegUrl -OutFile $FfmpegZip -UseBasicParsing
+        $ExtractDir = Join-Path $env:TEMP "ffmpeg_extract"
+        Expand-Archive -Path $FfmpegZip -DestinationPath $ExtractDir -Force
+        $FoundFfmpeg = Get-ChildItem -Path $ExtractDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+        if ($FoundFfmpeg) {
+            Copy-Item -Path $FoundFfmpeg.FullName -Destination $Ffmpeg -Force
+            Write-Host "[SUCCESS] ffmpeg.exe extracted and configured successfully." -ForegroundColor Green
+        }
+        Remove-Item -Path $FfmpegZip -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Warning "Failed to auto-download ffmpeg.exe: $_"
+    }
+}
+
+# 6. CMake Configure
 Write-Host "`n[INFO] Running CMake configure..." -ForegroundColor Cyan
 $CmakeArgs = @(
     "-B", "build",
